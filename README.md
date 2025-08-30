@@ -1,15 +1,14 @@
 # ESP32 Sensor Logger
 
 A simple project to log sensor data on the ESP32.  
-The project starts with simulated sensor values and then extends to real hardware (DHT11, ESP32, HTTP server, etc.).
+The project starts with simulated sensor values and then extends to real hardware (DHT11, ESP32).
 
 ## Features
 
 - ✅ Simulated temperature sensor (random values)
 - ✅ Data logging to `.csv` file (with timestamp)
-- ⏳ Real sensor support (DHT11 on ESP32)
-- ⏳ Local storage on ESP32 (SPIFFS)
-- ⏳ Data transmission to HTTP server
+- ✅ Real sensor support (DHT11 on ESP32)
+- ✅ Local storage on ESP32 (SPIFFS)
 
 ## Project Structure
 .
@@ -41,4 +40,3 @@ pio device monitor
  CSV data logging with timestamps
  Read temperature from DHT11
  Store data in ESP32 SPIFFS
- Send data to remote HTTP server
