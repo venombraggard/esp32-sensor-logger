@@ -1,82 +1,89 @@
 #include <Arduino.h>
-#include <DHT.h>
 #include <FS.h>
-
-// - DHT Sensor Library: https://github.com/adafruit/DHT-sensor-library
-// - Adafruit Unified Sensor Lib: https://github.com/adafruit/Adafruit_Sensor
 #include <Adafruit_Sensor.h>
-
-// DHT Temperature & Humidity Sensor
 #include <DHT.h>
 #include <DHT_U.h>
+#include <SPIFFS.h>
 
 // Digital pin connected to the DHT sensor 
 #define DHTPIN 5     
+#define DHTTYPE DHT11   // DHT 11
 
-// Uncomment the type of sensor in use:
-#define DHTTYPE    DHT11     // DHT 11
+// DHT object
+DHT dht(DHTPIN, DHTTYPE);
 
+// File object for SPIFFS
+File fichier;
 
-// See guide for details on sensor wiring and usage:
-//   https://learn.adafruit.com/dht/overview
+// Global timers
+unsigned long previousTimeTwoS = 0;
+unsigned long previousTimeOneS = 0;
 
-DHT_Unified dht(DHTPIN, DHTTYPE);
+// Check 2s interval (non-blocking)
+bool intervalTwoS() {
+  unsigned long currentTime = millis();
+  if (currentTime - previousTimeTwoS >= 2000) {
+    previousTimeTwoS = currentTime;
+    return true;
+  }
+  return false;
+}
 
-uint32_t delayMS;
+// Check 1s interval (non-blocking)
+bool intervalOneS() {
+  unsigned long currentTime = millis();
+  if (currentTime - previousTimeOneS >= 1000) {
+    previousTimeOneS = currentTime;
+    return true;
+  }
+  return false;
+}
 
 void setup() {
   Serial.begin(115200);
-  // Initialize device.
+
+  // Init DHT sensor
   dht.begin();
-  Serial.println(F("DHTxx Unified Sensor Example"));
-  // Print temperature sensor details.
-  sensor_t sensor;
-  dht.temperature().getSensor(&sensor);
-  Serial.println(F("------------------------------------"));
-  Serial.println(F("Temperature Sensor"));
-  Serial.print  (F("Sensor Type: ")); Serial.println(sensor.name);
-  Serial.print  (F("Driver Ver:  ")); Serial.println(sensor.version);
-  Serial.print  (F("Unique ID:   ")); Serial.println(sensor.sensor_id);
-  Serial.print  (F("Max Value:   ")); Serial.print(sensor.max_value); Serial.println(F("°C"));
-  Serial.print  (F("Min Value:   ")); Serial.print(sensor.min_value); Serial.println(F("°C"));
-  Serial.print  (F("Resolution:  ")); Serial.print(sensor.resolution); Serial.println(F("°C"));
-  Serial.println(F("------------------------------------"));
-  // Print humidity sensor details.
-  dht.humidity().getSensor(&sensor);
-  Serial.println(F("Humidity Sensor"));
-  Serial.print  (F("Sensor Type: ")); Serial.println(sensor.name);
-  Serial.print  (F("Driver Ver:  ")); Serial.println(sensor.version);
-  Serial.print  (F("Unique ID:   ")); Serial.println(sensor.sensor_id);
-  Serial.print  (F("Max Value:   ")); Serial.print(sensor.max_value); Serial.println(F("%"));
-  Serial.print  (F("Min Value:   ")); Serial.print(sensor.min_value); Serial.println(F("%"));
-  Serial.print  (F("Resolution:  ")); Serial.print(sensor.resolution); Serial.println(F("%"));
-  Serial.println(F("------------------------------------"));
-  // Set delay between sensor readings based on sensor details.
-  delayMS = sensor.min_delay / 1000;
+
+  // Init SPIFFS
+  if (!SPIFFS.begin(true)) {
+    Serial.println("Error initializing SPIFFS...");
+    return;
+  }
+
+  // Open file in append mode (create if not exists)
+  fichier = SPIFFS.open("/export.csv", FILE_APPEND);
+  if (!fichier) {
+    Serial.println("Error opening CSV file...");
+    return;
+  }
+
+  // Write header if file is empty
+  if (fichier.size() == 0) {
+    fichier.println("timestamp,temperature");
+    fichier.flush();
+  }
 }
 
 void loop() {
-  // Delay between measurements.
-  delay(delayMS);
-  // Get temperature event and print its value.
-  sensors_event_t event;
-  dht.temperature().getEvent(&event);
-  if (isnan(event.temperature)) {
-    Serial.println(F("Error reading temperature!"));
-  }
-  else {
-    Serial.print(F("Temperature: "));
-    Serial.print(event.temperature);
-    Serial.println(F("°C"));
-  }
-  // Get humidity event and print its value.
-  dht.humidity().getEvent(&event);
-  if (isnan(event.relative_humidity)) {
-    Serial.println(F("Error reading humidity!"));
-  }
-  else {
-    Serial.print(F("Humidity: "));
-    Serial.print(event.relative_humidity);
-    Serial.println(F("%"));
+  // Every 2 seconds
+  if (intervalTwoS()) {
+    float temp = dht.readTemperature();
+
+    // Check if reading failed
+    if (isnan(temp)) {
+      Serial.println("Failed to read DHT11 sensor...");
+      return;
+    }
+
+    // Current timestamp in seconds
+    unsigned long now = millis() / 1000;
+
+    // Write to CSV
+    fichier.printf("%lu, %.2f\n", now, temp);
+    fichier.flush(); // Ensure data is written to SPIFFS
+
+    // Print to Serial Monitor
+    Serial.printf("t=%lu s, Temp: %.2f °C\n", now, temp);
   }
 }
